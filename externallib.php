@@ -280,7 +280,7 @@ class local_exam_remote_external extends external_api {
         return new external_function_parameters(
                         array('shortname'=>new external_value(PARAM_TEXT, 'Course shortname', VALUE_DEFAULT, ''),
                               'customfields'=>new external_multiple_structure(new external_value(PARAM_TEXT, 'User custom field shortname'),
-                                                                            'Array of user fields', VALUE_DEFAULT, array())
+                                                                            'Array of user custom fields', VALUE_DEFAULT, array())
                              )
                     );
     }
@@ -299,8 +299,9 @@ class local_exam_remote_external extends external_api {
 		$userfields = 'u.id, u.username, u.firstname, u.lastname, u.email, u.city, u.country, u.lang, u.timezone';
 		$students = get_enrolled_users($context, 'local/exam_remote:take_exam', 0, $userfields, null, 0, 0, true);
 
-        if (!empty($customfields)) {
-            foreach ($students AS $st) {
+        foreach ($students AS $st) {
+            $st->customfields = array();
+            if (!empty($customfields)) {
                 profile_load_custom_fields($st);
                 foreach ($customfields AS $f) {
                     if (isset($st->profile[$f])) {
