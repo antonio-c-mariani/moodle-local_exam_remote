@@ -35,19 +35,26 @@ require_once(dirname(__FILE__) . '/../../../config.php');
 require_once($CFG->dirroot . '/user/lib.php');
 require_once($CFG->dirroot . '/webservice/lib.php');
 
+$plugin_manager = core_plugin_manager::instance();
+$installed = $plugin_manager->get_installed_plugins('local');
+if (!isset($installed['exam_remote'])) {
+    echo "\n=> Plugin 'exam_remote' is not installed.\n";
+    exit;
+}
+
+$tokeniprestriction = '150.162.9.0/24'; // set the ip access restriction for this plugin
+$email              = 'wsexam@kkk.ddd.br';
+$password           = 'Vy%;' . rand(100000, 999999);
+
 $rolename = 'wsexam';
 $username = 'wsexam';
-$email    = 'wsexam@kkk.ddd.br';
-$password = 'Vy%;' . rand(100000, 999999);
-
-$webservice         = 'rest';
-$servicename        = 'Moodle Exam';
-$tokeniprestriction = '150.162.9.0/24'; // preencha com um ip ou máscara de ip para restringir o acesso
+$webservice  = 'rest';
+$servicename = 'Moodle Exam';
 
 $context = context_system::instance();
 
 // ----------------------------------------------------------------------------------
-// Cria usuário para webservice
+// Criate a webservice user
 
 if (!$user = $DB->get_record('user', array('username'=>$username))) {
     $user = new stdclass();
@@ -61,21 +68,22 @@ if (!$user = $DB->get_record('user', array('username'=>$username))) {
     $user->policyagreed = 1;
     $user->mnethostid   = $CFG->mnet_localhost_id;
     $user->id = user_create_user($user, false);
-    echo "- Created user '{$username}'\n";
+    echo "- Created user '{$username}'.\n";
 } else {
-    echo "- User '{$username}' already exists\n";
+    echo "- User '{$username}' already exists.\n";
 }
 
 // ----------------------------------------------------------------------------------
-// Cria papel para webservice
+// Criate a webservice role
 
 if (!$roleid = $DB->get_field('role', 'id', array('shortname'=>$rolename))) {
     $roleid = create_role('Webservice Exam', $rolename, 'Webservice Exam');
     set_role_contextlevels($roleid, array(CONTEXT_SYSTEM));
-    echo "- Created role '{$rolename}'\n";
+    echo "- Created role '{$rolename}'.\n";
 } else {
     echo "- Role '{$rolename}' already exists.\n";
 }
+echo "- Assigning some capabilities to the role: '{$rolename}'.\n";
 assign_capability('webservice/rest:use', CAP_ALLOW, $roleid, $context->id);
 assign_capability('moodle/course:managegroups', CAP_ALLOW, $roleid, $context->id);
 assign_capability('moodle/course:view', CAP_ALLOW, $roleid, $context->id);
@@ -92,13 +100,15 @@ assign_capability('moodle/course:enrolreview', CAP_ALLOW, $roleid, $context->id)
 assign_capability('moodle/user:update', CAP_ALLOW, $roleid, $context->id);
 
 // ----------------------------------------------------------------------------------
-// Atribui papel ao usuário no contexto global
+// Set the privous role to the user in the global contex
 
+echo "- Assigning role: '{$rolename}' to the user: '{$username}' in the global context.\n";
 role_assign($roleid, $user->id, $context->id);
 
 // ----------------------------------------------------------------------------------
-// Habilita o uso de webservices
+// Enable webservices
 
+echo "- Enabling webservices.\n";
 $configs = array(
                  array('enablewebservices', true),
                 );
@@ -112,8 +122,9 @@ foreach ($configs AS $cfg) {
 }
 
 // ----------------------------------------------------------------------------------
-// Ativa protocolo
+// Activate the rest webservice
 
+echo "- Enabling '{$webservice}' webservices.\n";
 $activewebservices = empty($CFG->webserviceprotocols) ? array() : explode(',', $CFG->webserviceprotocols);
 if (!in_array($webservice, $activewebservices)) {
     $activewebservices[] = $webservice;
@@ -122,12 +133,13 @@ if (!in_array($webservice, $activewebservices)) {
 }
 
 // ----------------------------------------------------------------------------------
-// Adicionando usuário ao serviço
+// Add the previous user to the external service
 
 if (!$externalservice = $DB->get_record('external_services', array('name'=>$servicename), 'id, name, enabled')) {
     die("*** Unknown service: {$servicename}. It should be added by db/services.php.\n");
 }
 
+echo "- Authorizing '{$username}' to use '{$externalservice->name}' webservices.\n";
 $webservicemanager = new webservice();
 $users = $webservicemanager->get_ws_authorised_users($externalservice->id);
 if (!isset($users[$user->id])) {
@@ -138,11 +150,12 @@ if (!isset($users[$user->id])) {
 }
 
 // ----------------------------------------------------------------------------------
-// Gerando token
+// Generates a token
 
 if ($token = $DB->get_record('external_tokens', array('userid'=>$user->id, 'externalserviceid'=>$externalservice->id))) {
     $tokenmessage = "Token:\t\t{$token->token}";
 } else {
+    echo "- Generating a new token.\n";
     $token = external_generate_token(EXTERNAL_TOKEN_PERMANENT, $externalservice->id, $user->id, $context, 0, $tokeniprestriction);
     $newtoken = new stdclass();
     $newtoken->id = $DB->get_field('external_tokens', 'id', array('token'=>$token));
@@ -151,8 +164,11 @@ if ($token = $DB->get_record('external_tokens', array('userid'=>$user->id, 'exte
     $tokenmessage = "New token:\t{$token}";
 }
 
-$description = $DB->get_field('course', 'fullname', array('id' => 1));
-echo "\n";
+// ----------------------------------------------------------------------------------
+// Display some useful information to configure Moodle Exam
+
+$site = get_site();
+echo "\nData needed to configure Moodle Exam:\n\n";
 echo "URL:\t\t{$CFG->wwwroot}\n";
-echo "Description:\t{$description}\n";
+echo "Description:\t{$site->fullname}\n";
 echo "{$tokenmessage}\n\n";

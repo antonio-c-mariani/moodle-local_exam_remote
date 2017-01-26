@@ -89,11 +89,11 @@ class local_exam_remote_external extends external_api {
 // --------------------------------------------------------------------------------------------------------
 
     /**
-     * Describes the parameters for user_capabilities.
+     * Describes the parameters for get_user_capabilities.
      *
      * @return external_external_function_parameters
      */
-    public static function user_capabilities_parameters() {
+    public static function get_user_capabilities_parameters() {
         return new external_function_parameters(
                         array('username'  => new external_value(PARAM_TEXT, 'Username'),
                               'shortname' => new external_value(PARAM_TEXT, 'Course shortname')
@@ -108,10 +108,10 @@ class local_exam_remote_external extends external_api {
      * @param String $shortname Course shortname
      * @return array
      */
-    public static function user_capabilities($username, $shortname) {
+    public static function get_user_capabilities($username, $shortname) {
         global $DB;
 
-        $params = self::validate_parameters(self::user_capabilities_parameters(),
+        $params = self::validate_parameters(self::get_user_capabilities_parameters(),
                     array('username' => $username, 'shortname' => $shortname));
 
         $capabilities = array();
@@ -139,7 +139,7 @@ class local_exam_remote_external extends external_api {
      *
      * @return external_value
      */
-    public static function user_capabilities_returns() {
+    public static function get_user_capabilities_returns() {
         return new external_multiple_structure(
                     new external_value(PARAM_TEXT, 'Capability')
                );
@@ -148,11 +148,11 @@ class local_exam_remote_external extends external_api {
 // --------------------------------------------------------------------------------------------------------
 
     /**
-     * Describes the parameters for user_courses.
+     * Describes the parameters for get_user_courses.
      *
      * @return external_external_function_parameters
      */
-    public static function user_courses_parameters() {
+    public static function get_user_courses_parameters() {
         return new external_function_parameters(
                         array('username'=>new external_value(PARAM_TEXT, 'Username'))
                    );
@@ -160,15 +160,15 @@ class local_exam_remote_external extends external_api {
 
     /**
      * Returns an array of visible courses (id, shortname, fullname, categoryid)
-     * and the capabilities the user play in the corresponding courses.
+     * and the capabilities (expcept local/exam_remote:take_exam) the user play in the corresponding courses, exc
      *
      * @param String $username
-     * @return int
+     * @return array of courses
      */
-    public static function user_courses($username) {
+    public static function get_user_courses($username) {
         global $DB;
 
-        $params = self::validate_parameters(self::user_courses_parameters(), array('username'=>$username));
+        $params = self::validate_parameters(self::get_user_courses_parameters(), array('username'=>$username));
 
         if (!$userid = $DB->get_field('user', 'id', array('username'=>$username, 'deleted'=>0, 'suspended'=>0))) {
             return array();
@@ -191,11 +191,11 @@ class local_exam_remote_external extends external_api {
     }
 
     /**
-     * Describes the user_courses return value.
+     * Describes the get_user_courses return value.
      *
      * @return external_multiple_structure
      */
-    public static function user_courses_returns() {
+    public static function get_user_courses_returns() {
         return new external_multiple_structure(
                       new external_single_structure(
                           array(
@@ -279,84 +279,35 @@ class local_exam_remote_external extends external_api {
     public static function get_students_parameters() {
         return new external_function_parameters(
                         array('shortname'=>new external_value(PARAM_TEXT, 'Course shortname', VALUE_DEFAULT, ''),
-                              'userfields'=>new external_multiple_structure(new external_value(PARAM_TEXT, 'User field shortname'),
+                              'customfields'=>new external_multiple_structure(new external_value(PARAM_TEXT, 'User custom field shortname'),
                                                                             'Array of user fields', VALUE_DEFAULT, array())
                              )
                     );
     }
 
-    public static function get_students($shortname, $userfields = array()) {
+    public static function get_students($shortname, $customfields = array()) {
         global $DB, $CFG;
 
         $params = self::validate_parameters(self::get_students_parameters(),
-                                            array('shortname'=>$shortname, 'userfields'=>$userfields));
-
-        $user_table_fields = $DB->get_columns('user');
-
-        $info_fields = array();
-        $extra_fields = array();
-        foreach ($userfields AS $f) {
-            if (isset($user_table_fields[$f])) {
-                if ($f != 'id') {
-                    $extra_fields[] = $f;
-                }
-            } else {
-                $info_fields[] = $f;
-            }
-        }
-        $extra_fields = array_unique($extra_fields);
-
-        if (empty($extra_fields)) {
-            $user_fields_str = 'u.id';
-        } else {
-            $user_fields_str = 'u.id, u.' . implode(', u.', $extra_fields);
-        }
+                                            array('shortname'=>$shortname, 'customfields'=>$customfields));
 
         if (!$courseid = $DB->get_field('course', 'id', array('shortname'=>$shortname))) {
             return array();
         }
-
         $context = context_course::instance($courseid);
-        list($sql, $params) = get_enrolled_sql($context, null, null, true);
-        list($sql_role, $params_role) = $DB->get_in_or_equal(explode(',', $CFG->gradebookroles), SQL_PARAMS_NAMED);
-        $params = array_merge($params, $params_role);
 
-        $sql = "SELECT DISTINCT {$user_fields_str}
-                  FROM {course} c
-                  JOIN {context} ctx ON (ctx.instanceid = c.id AND ctx.contextlevel = :contextlevel)
-                  JOIN {role_assignments} ra ON (ra.contextid = ctx.id AND ra.roleid {$sql_role})
-                  JOIN {user} u ON (u.id = ra.userid)
-                  JOIN ($sql) j ON (j.id = u.id)
-                 WHERE c.id = :courseid";
-        $params['courseid'] = $courseid;
-        $params['contextlevel'] = CONTEXT_COURSE;
-        $params['roleids'] = $CFG->gradebookroles;
+		$userfields = 'u.id, u.username, u.firstname, u.lastname, u.email, u.city, u.country, u.lang, u.timezone';
+		$students = get_enrolled_users($context, 'local/exam_remote:take_exam', 0, $userfields, null, 0, 0, true);
 
-        $students = $DB->get_records_sql($sql, $params);
-
-        // trata campos extras contidos na tabela 'user'
-        foreach ($students AS $st) {
-            $extras = array();
-            foreach ($extra_fields AS $f) {
-                $obj = new stdClass();
-                $obj->field = $f;
-                $obj->value = $st->$f;
-                unset($st->$f);
-                $extras[] = $obj;
-            }
-            $st->userfields = $extras;
-        }
-
-        if (!empty($info_fields)) {
-            // trata campos extras que estão nos dados adicionais dos usuários
+        if (!empty($customfields)) {
             foreach ($students AS $st) {
                 profile_load_custom_fields($st);
-                foreach ($info_fields AS $f) {
+                foreach ($customfields AS $f) {
                     if (isset($st->profile[$f])) {
                         $obj = new stdClass();
                         $obj->field = $f;
                         $obj->value = $st->profile[$f];
-                        $st->userfields[] = $obj;
+                        $st->customfields[] = $obj;
                     }
                 }
                 unset($st->profile);
@@ -374,8 +325,16 @@ class local_exam_remote_external extends external_api {
     public static function get_students_returns() {
         return new external_multiple_structure(
                     new external_single_structure(
-                        array('id'  => new external_value(PARAM_TEXT, 'User id'),
-                              'userfields' => new external_multiple_structure(
+                        array('id' => new external_value(PARAM_TEXT, 'User id'),
+                              'username' => new external_value(PARAM_TEXT, 'Username'),
+                              'firstname' => new external_value(PARAM_TEXT, 'User firstname'),
+                              'lastname' => new external_value(PARAM_TEXT, 'User lastname'),
+                              'email' => new external_value(PARAM_TEXT, 'User email'),
+                              'city' => new external_value(PARAM_TEXT, 'User city'),
+                              'country' => new external_value(PARAM_TEXT, 'User country'),
+                              'lang' => new external_value(PARAM_TEXT, 'User lang'),
+                              'timezone' => new external_value(PARAM_TEXT, 'User timezone'),
+                              'customfields' => new external_multiple_structure(
                                      new external_single_structure(array('field' => new external_value(PARAM_TEXT, 'Field name'),
                                                                          'value' => new external_value(PARAM_TEXT, 'Field value'))))
                         )
@@ -392,8 +351,8 @@ class local_exam_remote_external extends external_api {
      */
     public static function restore_activity_parameters() {
         return new external_function_parameters(
-                array('shortname' => new external_value(PARAM_TEXT, 'Shortname da turma', VALUE_DEFAULT, ''),
-                      'username' => new external_value(PARAM_TEXT, 'Username do usuário', VALUE_DEFAULT, ''),
+                array('shortname' => new external_value(PARAM_TEXT, 'Course shortname', VALUE_DEFAULT, ''),
+                      'username' => new external_value(PARAM_TEXT, 'Username', VALUE_DEFAULT, ''),
                      )
         );
     }

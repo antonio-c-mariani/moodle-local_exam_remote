@@ -30,9 +30,9 @@
  */
 
 $functions = array(
-        'local_exam_remote_user_courses' => array(
+        'local_exam_remote_get_user_courses' => array(
                 'classname'   => 'local_exam_remote_external',
-                'methodname'  => 'user_courses',
+                'methodname'  => 'get_user_courses',
                 'classpath'   => 'local/exam_remote/externallib.php',
                 'description' => 'Return a list of user courses (shortname, fullname) giving a username',
                 'type'        => 'read',
@@ -52,7 +52,7 @@ $functions = array(
                 'classname'   => 'local_exam_remote_external',
                 'methodname'  => 'get_students',
                 'classpath'   => 'local/exam_remote/externallib.php',
-                'description' => 'Return a list of students (username, idnumber, auth, firstname, shortname, email, password) enrolled in a course',
+                'description' => 'Return a list of students enrolled in a course',
                 'type'        => 'read',
                 'services'    => array('moodle_exam'),
         ),
@@ -66,9 +66,9 @@ $functions = array(
                 'services'    => array('moodle_exam'),
         ),
 
-        'local_exam_remote_user_capabilities' => array(
+        'local_exam_remote_get_user_capabilities' => array(
                 'classname'   => 'local_exam_remote_external',
-                'methodname'  => 'user_capabilities',
+                'methodname'  => 'get_user_capabilities',
                 'classpath'   => 'local/exam_remote/externallib.php',
                 'description' => 'Get the user capabilities on course',
                 'type'        => 'read',
@@ -92,7 +92,6 @@ $services = array(
                                       'core_group_get_group_members',
                                       'core_group_get_groupings',
                                       'core_user_get_users_by_field',
-                                      'core_enrol_get_enrolled_users_with_capability',
                                      ),
                 'restrictedusers' => 1,
                 'enabled' => 1,
