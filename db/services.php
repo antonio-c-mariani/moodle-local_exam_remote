@@ -75,6 +75,15 @@ $functions = array(
                 'services'    => array('moodle_exam'),
         ),
 
+        'local_exam_remote_get_users' => array(
+                'classname'   => 'local_exam_remote_external',
+                'methodname'  => 'get_users',
+                'classpath'   => 'local/exam_remote/externallib.php',
+                'description' => 'Get users given some key and value',
+                'type'        => 'read',
+                'services'    => array('moodle_exam'),
+        ),
+
         'local_exam_remote_authenticate' => array(
                 'classname'   => 'local_exam_remote_external',
                 'methodname'  => 'authenticate',
@@ -91,7 +100,6 @@ $services = array(
                                       'core_group_get_course_groups',
                                       'core_group_get_group_members',
                                       'core_group_get_groupings',
-                                      'core_user_get_users_by_field',
                                      ),
                 'restrictedusers' => 1,
                 'enabled' => 1,

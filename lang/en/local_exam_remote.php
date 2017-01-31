@@ -38,7 +38,8 @@ $string['exam_remote:monitor_exam'] = 'View exam reports in Moodle Exam';
 
 $string['rolename'] = 'Role name: teacher, monitor or student';
 
-$string['unknown_course'] = 'Unknown course: \'{$a}\'';
+$string['unknown_course'] = 'Unknown course: \'{$a->shortname}\' in \'{$a->site}\'';
 $string['unknown_user'] = 'Unknown user: \'{$a}\'';
 $string['no_permission'] = 'User without permission: \'{$a}\'';
 $string['backup_file_not_found'] = 'Activity backup file was not found';
+$string['precheck_failed'] = 'Some problems were detected when checking backup data';

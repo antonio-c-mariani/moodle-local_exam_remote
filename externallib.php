@@ -49,8 +49,8 @@ class local_exam_remote_external extends external_api {
      */
     public static function authenticate_parameters() {
         return new external_function_parameters(
-                        array('username'=>new external_value(PARAM_TEXT, 'Username'),
-                              'password'=>new external_value(PARAM_RAW, 'Password'))
+                        array('username' => new external_value(PARAM_TEXT, 'Username'),
+                              'password' => new external_value(PARAM_RAW, 'Password'))
                    );
     }
 
@@ -64,7 +64,8 @@ class local_exam_remote_external extends external_api {
     public static function authenticate($username, $password) {
         global $DB;
 
-        $params = self::validate_parameters(self::authenticate_parameters(), array('username'=>$username, 'password'=>$password));
+        $params = self::validate_parameters(self::authenticate_parameters(),
+                            array('username' => $username, 'password' => $password));
 
         if ($user = core_user::get_user_by_username($username, 'id, auth, password, deleted, suspended')) {
             if ($user->deleted || $user->suspended) {
@@ -148,13 +149,142 @@ class local_exam_remote_external extends external_api {
 // --------------------------------------------------------------------------------------------------------
 
     /**
+     * Describes the parameters for get_users.
+     *
+     * @return external_external_function_parameters
+     */
+    public static function get_users_parameters() {
+        return new external_function_parameters(
+                    array(
+                        'field' => new external_value(PARAM_ALPHA, 'the search field can be
+                                        \'id\' or \'idnumber\' or \'username\' or \'email\''),
+                        'value' => new external_value(PARAM_RAW, 'the value to match'),
+                        'customfields' => new external_multiple_structure(new external_value(PARAM_TEXT, 'Custom field'),
+                                                'User custom fields (also known as user profile fields)', VALUE_OPTIONAL)
+
+                    )
+               );
+    }
+
+    /**
+     * Returns an array of visible courses (id, shortname, fullname, categoryid)
+     * and the capabilities (expcept local/exam_remote:take_exam) the user play in the corresponding courses, exc
+     *
+     * @param String $field An user field
+     * @param String $value A value for the field
+     * @param array $customfields a collection of user custom fields
+     * @return array of users
+     */
+    public static function get_users($field, $value, $customfields=array()) {
+        global $DB;
+
+        $params = self::validate_parameters(self::get_users_parameters(),
+                    array('field' => $field, 'value' => $value, 'customfields' => $customfields));
+
+        switch ($field) {
+            case 'id':
+                $paramtype = core_user::get_property_type('id');
+                break;
+            case 'idnumber':
+                $paramtype = core_user::get_property_type('idnumber');
+                break;
+            case 'username':
+                $paramtype = core_user::get_property_type('username');
+                break;
+            case 'email':
+                $paramtype = core_user::get_property_type('email');
+                break;
+            default:
+                throw new coding_exception('invalid field parameter',
+                        'The search field \'' . $field . '\' is not supported, look at the web service documentation');
+        }
+
+        // Clean the value.
+        $cleanedvalue = clean_param($value, $paramtype);
+        if ($value != $cleanedvalue) {
+            throw new invalid_parameter_exception('The field \'' . $field .
+                    '\' value is invalid: ' . $value . '(cleaned value: '.$cleanedvalue.')');
+        }
+
+        $userfields = 'id, username, idnumber, firstname, lastname, email, lang, city, country, timezone';
+        $users = $DB->get_records('user', array($field => $cleanedvalue, 'deleted'=>0, 'suspended'=>0), '', $userfields);
+
+        if (empty($users)) {
+            return array();
+        }
+
+        foreach ($users as $user) {
+            $user->customfields = array();
+        }
+        if (!empty($customfields)) {
+            foreach ($users as $user) {
+                $data = profile_user_record($user->id, false);
+                foreach ($customfields as $cf) {
+                    if (isset($data->$cf)) {
+                        $user->customfields[] = array('shortname' => $cf, 'value' => $data->$cf);
+                    }
+                }
+            }
+        }
+
+        return $users;
+    }
+
+    /**
+     * Describes the get_users return value.
+     *
+     * @return external_multiple_structure
+     */
+    public static function get_users_returns() {
+        return new external_multiple_structure(
+                      new external_single_structure(
+                          array(
+                            'id' =>
+                                new external_value(core_user::get_property_type('id'), 'User id.'),
+                            'username' =>
+                                new external_value(core_user::get_property_type('username'), 'Username'),
+                            'firstname' =>
+                                new external_value(core_user::get_property_type('firstname'), 'The first name(s) of the user'),
+                            'lastname' =>
+                                new external_value(core_user::get_property_type('lastname'), 'The family name of the user'),
+                            'email' =>
+                                new external_value(core_user::get_property_type('email'), 'A valid and unique email address'),
+                            'idnumber' =>
+                                new external_value(core_user::get_property_type('idnumber'), 'An arbitrary ID code number perhaps from the institution',
+                                    VALUE_DEFAULT, ''),
+                            'lang' =>
+                                new external_value(core_user::get_property_type('lang'), 'Language code such as "en", must exist on server', VALUE_DEFAULT,
+                                    core_user::get_property_default('lang'), core_user::get_property_null('lang')),
+                            'timezone' =>
+                                new external_value(core_user::get_property_type('timezone'), 'Timezone code such as Australia/Perth, or 99 for default',
+                                    VALUE_OPTIONAL),
+                            'city' =>
+                                new external_value(core_user::get_property_type('city'), 'Home city of the user', VALUE_OPTIONAL),
+                            'country' =>
+                                new external_value(core_user::get_property_type('country'), 'Home country code of the user, such as AU or CZ', VALUE_OPTIONAL),
+                            'customfields' => new external_multiple_structure(
+                                new external_single_structure(
+                                    array(
+                                        'shortname' => new external_value(PARAM_ALPHANUMEXT, 'The shortname of the custom field'),
+                                        'value' => new external_value(PARAM_RAW, 'The value of the custom field')
+                                    )
+                                ), 'User custom fields (also known as user profil fields)', VALUE_OPTIONAL)
+                          )
+                      )
+               );
+    }
+
+// --------------------------------------------------------------------------------------------------------
+
+    /**
      * Describes the parameters for get_user_courses.
      *
      * @return external_external_function_parameters
      */
     public static function get_user_courses_parameters() {
         return new external_function_parameters(
-                        array('username'=>new external_value(PARAM_TEXT, 'Username'))
+                        array('username'    => new external_value(PARAM_TEXT, 'Username'),
+                              'onlyvisible' => new external_value(PARAM_INT, 'Only visible courses', VALUE_DEFAULT, 1))
                    );
     }
 
@@ -163,31 +293,20 @@ class local_exam_remote_external extends external_api {
      * and the capabilities (expcept local/exam_remote:take_exam) the user play in the corresponding courses, exc
      *
      * @param String $username
+     * @param boolean $onlyvisible if true return only visible courses
      * @return array of courses
      */
-    public static function get_user_courses($username) {
+    public static function get_user_courses($username, $onlyvisible=1) {
         global $DB;
 
-        $params = self::validate_parameters(self::get_user_courses_parameters(), array('username'=>$username));
+        $params = self::validate_parameters(self::get_user_courses_parameters(),
+                            array('username' => $username, 'onlyvisible' => $onlyvisible));
 
         if (!$userid = $DB->get_field('user', 'id', array('username'=>$username, 'deleted'=>0, 'suspended'=>0))) {
             return array();
         }
 
-        $courses = array();
-        $course_fields = 'c.shortname, c.fullname, c.category as categoryid';
-
-        list($sql, $params) = self::sql_over_courses($userid, $course_fields);
-        self::courses_from_sql($userid, $sql, $params, $courses);
-
-        list($sql, $params) = self::sql_over_categories($userid, $course_fields);
-        self::courses_from_sql($userid, $sql, $params, $courses);
-
-        foreach ($courses as $c) {
-            $c->capabilities = array_keys($c->capabilities);
-        }
-
-        return $courses;
+        return self::get_local_user_courses($userid, $onlyvisible);
     }
 
     /**
@@ -202,6 +321,7 @@ class local_exam_remote_external extends external_api {
                               'id'           => new external_value(PARAM_INT,  'Course id'),
                               'shortname'    => new external_value(PARAM_TEXT, 'Course shortname'),
                               'fullname'     => new external_value(PARAM_TEXT, 'Course fullname'),
+                              'visible'      => new external_value(PARAM_INT,  'Is the course visible?'),
                               'categoryid'   => new external_value(PARAM_INT, 'Category id'),
                               'capabilities' => new external_multiple_structure(new external_value(PARAM_TEXT), 'User capabilities'),
                           )
@@ -292,7 +412,11 @@ class local_exam_remote_external extends external_api {
                                             array('shortname'=>$shortname, 'customfields'=>$customfields));
 
         if (!$courseid = $DB->get_field('course', 'id', array('shortname'=>$shortname))) {
-            return array();
+            $site = get_site();
+            $a = new stdClass();
+            $a->shortname = $shortname;
+            $a->site = $site->fullname;
+            throw new moodle_exception('unknown_course' , 'local_exam_remote', '', $a);
         }
         $context = context_course::instance($courseid);
 
@@ -368,7 +492,11 @@ class local_exam_remote_external extends external_api {
         self::validate_context($context);
 
         if (!$course = $DB->get_record('course', array('shortname'=>$shortname))) {
-            return get_string('unknown_course', 'local_exam_remote', $shortname);
+            $site = get_site();
+            $a = new stdClass();
+            $a->shortname = $shortname;
+            $a->site = $site->fullname;
+            return get_string('unknown_course', 'local_exam_remote', $a);
         }
         if (!$user = $DB->get_record('user', array('username'=>$username))) {
             return get_string('unknown_user', 'local_exam_remote', $username);
@@ -388,22 +516,28 @@ class local_exam_remote_external extends external_api {
         $tmp_backup_dir = $CFG->dataroot . '/temp/backup';
         check_dir_exists($tmp_backup_dir);
 
-        $rand_backup_path = 'activity_restore_' . date('YmdHis') . '_' . rand();
-        $fp = get_file_packer('application/vnd.moodle.backup');
+        try {
+            $rand_backup_path = 'activity_restore_' . date('YmdHis') . '_' . rand();
+            $fp = get_file_packer('application/vnd.moodle.backup');
 
-        $extracted = $fp->extract_to_pathname($_FILES['backup_file']['tmp_name'], $tmp_backup_dir.'/'.$rand_backup_path);
-        if (!$extracted) {
-            throw new backup_helper_exception('missing_moodle_backup_file', $rand_backup_path);
+            $extracted = $fp->extract_to_pathname($_FILES['backup_file']['tmp_name'], $tmp_backup_dir.'/'.$rand_backup_path);
+            if (!$extracted) {
+                throw new backup_helper_exception('missing_moodle_backup_file', $rand_backup_path);
+            }
+
+            $adminid = $DB->get_field('user', 'id', array('username'=>'admin'));
+            $controller = new restore_controller($rand_backup_path, $course->id, backup::INTERACTIVE_NO, backup::MODE_GENERAL,
+                                                 $adminid, backup::TARGET_EXISTING_ADDING);
+            if ($controller->execute_precheck()) {
+                $controller->execute_plan();
+                return 'OK';
+            } else {
+                return get_string('precheck_failed', 'local_exam_remote');
+            }
+
+        } catch (Exception $e) {
+            return $e->getMessage();
         }
-
-        $adminid = $DB->get_field('user', 'id', array('username'=>'admin'));
-        $controller = new restore_controller($rand_backup_path, $course->id, backup::INTERACTIVE_NO, backup::MODE_GENERAL,
-                                             $adminid, backup::TARGET_EXISTING_ADDING);
-        $controller->execute_precheck();
-        $controller->execute_plan();
-
-        return 'OK';
-
     }
 
     /**
@@ -415,120 +549,80 @@ class local_exam_remote_external extends external_api {
         return new external_value(PARAM_TEXT, 'Resultado da restauração. OK se a restauração for realizada com sucesso');
     }
 
-    // --------------------------------------------------------------------------------------------------------
+// --------------------------------------------------------------------------------------------------------
+// Auxiliary functions
 
-    // Private functions
-
-    private static function courses_from_sql($userid, $sql, $params, &$courses) {
+    /**
+     * Return the course list the user has some exam capability except for taking exam
+     *
+     * @param int $userid The user Moodle id
+     * @param boolean $onlyvisible if true return only the visible courses
+     * @return array List of courses
+     */
+    public static function get_local_user_courses($userid, $onlyvisible=true) {
         global $DB;
 
-        foreach ($DB->get_recordset_sql($sql, $params) AS $c) {
-            if (!isset($courses[$c->id]->capabilities[$c->capability])) {
-                $context = context_course::instance($c->id);
-                if (has_capability($c->capability, $context, $userid)) {
-                    if (!isset($courses[$c->id])) {
-                        $c->capabilities = array();
-                        $courses[$c->id] = $c;
+        $capabilities = array();
+        foreach (self::$capabilities as $cap) {
+            if ($cap != 'local/exam_remote:take_exam') {
+                $capabilities[] = $cap;
+            }
+        }
+
+        $visible = $onlyvisible ? 'AND c.visible = 1' : '';
+
+        $sql = "SELECT c.id, c.shortname, c.fullname, c.visible, c.category as categoryid
+                  FROM {course} c
+                  JOIN (SELECT c.id as courseid
+                          FROM {role_assignments} ra
+                          JOIN {context} ctx ON (ctx.id = ra.contextid AND ctx.contextlevel = :catcontext1)
+                          JOIN {context} ctxs ON (ctxs.id = ctx.id OR
+                                                  (ctxs.contextlevel = :catcontext2 AND
+                                                   ctxs.depth > ctx.depth AND
+                                                   ctxs.path LIKE CONCAT(ctx.path, '/%')))
+                          JOIN {course} c ON (c.category = ctxs.instanceid {$visible})
+                         WHERE ra.userid = :userid1
+
+                         UNION
+
+                        SELECT e.courseid
+                          FROM {enrol} e
+                          JOIN {user_enrolments} ue ON (ue.enrolid = e.id)
+                         WHERE ue.status = :active
+                           AND e.status = :enabled
+                           AND ue.timestart < :now1 AND (ue.timeend = 0 OR ue.timeend > :now2)
+                           AND ue.userid = :userid2
+                       ) j
+                    ON (j.courseid = c.id)
+                 WHERE c.id <> :siteid
+                   {$visible}";
+        $params = array();
+        $params['siteid']  = SITEID;
+        $params['userid1'] = $userid;
+        $params['userid2'] = $userid;
+        $params['active']  = ENROL_USER_ACTIVE;
+        $params['enabled'] = ENROL_INSTANCE_ENABLED;
+        $params['now1']    = round(time(), -2); // improves db caching
+        $params['now2']    = $params['now1'];
+        $params['catcontext1']  = CONTEXT_COURSECAT;
+        $params['catcontext2']  = CONTEXT_COURSECAT;
+
+        $courses = array();
+        foreach ($DB->get_recordset_sql($sql, $params) as $course) {
+            context_helper::preload_from_record($course);
+            if ($context = context_course::instance($course->id, IGNORE_MISSING)) {
+                $course->capabilities = array();
+                foreach ($capabilities as $cap) {
+                    if (has_capability($cap, $context, $userid)) {
+                        $course->capabilities[] = $cap;
                     }
-                    $courses[$c->id]->capabilities[$c->capability] = true;
+                }
+                if (!empty($course->capabilities)) {
+                    $courses[$course->id] = $course;
                 }
             }
         }
 
         return $courses;
-    }
-
-    /**
-     * Retorna código sql para obtenção dos cursos visíveis (e correspondentes capabilities) nos quais o usuário possui alguma atribuição explícita
-     * de papel que possui uma ou mais das 'capabilities' relacionadas a provas. As capabilities podem ter sido definidas globalmente no papel
-     * ou atribuidas localmente no curso.
-     *
-     * @param int $userid
-     * @param String $course_extra_fields
-     * @return String sql code
-     */
-    private static function sql_over_courses($userid, $course_extra_fields='') {
-        global $DB;
-
-        $course_extra_fields = empty($course_extra_fields) ? '' : ', ' . $course_extra_fields;
-
-        $sql = "SELECT c.id, rc.capability {$course_extra_fields}
-                  FROM {role_assignments} ra
-                  JOIN {context} ctx ON (ctx.id = ra.contextid AND ctx.contextlevel = :contextcourselevel1)
-                  JOIN {role_capabilities} rc ON (rc.roleid = ra.roleid AND rc.permission = 1 AND (rc.contextid = 1 OR rc.contextid = ra.contextid))
-                  JOIN {capabilities} cap ON (cap.name = rc.capability AND cap.component = 'local_exam_remote')
-                  JOIN {course} c ON (c.id = ctx.instanceid AND c.visible = 1)
-                 WHERE ra.userid = :userid1
-
-                 UNION
-
-                SELECT c.id, rc.capability {$course_extra_fields}
-                  FROM {role_assignments} ra
-                  JOIN {context} ctx ON (ctx.id = ra.contextid AND ctx.contextlevel = :contextcourselevel2)
-                  JOIN {course} c ON (c.id = ctx.instanceid AND c.visible = 1)
-                  JOIN {course_categories} cc ON (cc.id = c.category AND cc.visible = 1)
-                  JOIN {context} ctxc ON (ctxc.instanceid = cc.id AND ctxc.contextlevel = :contextcoursecatlevel1)
-                  JOIN {context} ctxs ON (ctxs.id = ctxc.id OR (ctxs.contextlevel = :contextcoursecatlevel2 AND ctxs.depth < ctxc.depth AND ctxc.path LIKE CONCAT(ctxs.path, '/%')))
-                  JOIN {role_capabilities} rc ON (rc.roleid = ra.roleid AND rc.permission = 1 AND rc.contextid > 1 AND rc.contextid = ctxs.id)
-                  JOIN {capabilities} cap ON (cap.name = rc.capability AND cap.component = 'local_exam_remote')
-                 WHERE ra.userid = :userid2";
-
-        $params = array();
-        $params['userid1'] = $userid;
-        $params['userid2'] = $userid;
-        $params['contextcourselevel1'] = CONTEXT_COURSE;
-        $params['contextcourselevel2'] = CONTEXT_COURSE;
-        $params['contextcoursecatlevel1'] = CONTEXT_COURSECAT;
-        $params['contextcoursecatlevel2'] = CONTEXT_COURSECAT;
-
-        return array($sql, $params);
-    }
-
-    private static function sql_over_categories($userid, $course_extra_fields='') {
-        global $DB;
-
-        $course_extra_fields = empty($course_extra_fields) ? '' : ', ' . $course_extra_fields;
-
-        list($cap_sql1, $params1) = $DB->get_in_or_equal(array_keys(self::$capabilities), SQL_PARAMS_NAMED);
-        list($cap_sql2, $params2) = $DB->get_in_or_equal(array_keys(self::$capabilities), SQL_PARAMS_NAMED);
-        $params = array_merge($params1, $params2);
-
-        $coursecatcontext = CONTEXT_COURSECAT;
-
-        $sql = "SELECT c.id, rc.capability {$course_extra_fields}
-                  FROM {role_assignments} ra
-                  JOIN {context} ctx ON (ctx.id = ra.contextid AND ctx.contextlevel = {$coursecatcontext})
-                  JOIN {context} ctxs ON (ctxs.id = ctx.id OR (ctxs.contextlevel = {$coursecatcontext} AND ctxs.depth > ctx.depth AND ctxs.path LIKE CONCAT(ctx.path, '/%')))
-                  JOIN {role_capabilities} rc ON (rc.roleid = ra.roleid)
-                  JOIN {course_categories} cc ON (cc.id = ctxs.instanceid AND cc.visible)
-                  JOIN {course} c ON (c.category = cc.id AND c.visible)
-                 WHERE ra.userid = :userid1
-                   AND rc.capability {$cap_sql1}
-                   AND rc.contextid = 1
-                   AND rc.permission = 1
-
-                 UNION
-
-                SELECT c.id, rcc.capability {$course_extra_fields}
-                  FROM {role_assignments} ra
-                  JOIN {context} ctx ON (ctx.id = ra.contextid AND ctx.contextlevel = {$coursecatcontext})
-                  JOIN {context} ctxs ON (ctxs.id = ctx.id OR (ctxs.contextlevel = {$coursecatcontext} AND ctxs.path LIKE CONCAT(ctx.path, '/%')))
-                  JOIN (SELECT rc.capability, rc.roleid, ctxs.id as contextid
-                          FROM {role_capabilities} rc
-                          JOIN {context} ctx ON (ctx.id = rc.contextid AND ctx.contextlevel = {$coursecatcontext})
-                          JOIN {context} ctxs ON (ctxs.id = ctx.id OR (ctxs.contextlevel = {$coursecatcontext} AND
-                                                  ctxs.depth > ctx.depth AND ctxs.path LIKE CONCAT(ctx.path, '/%')))
-                         WHERE rc.capability {$cap_sql2}
-                           AND rc.permission = 1
-                           AND rc.contextid > 1) rcc
-                    ON (rcc.contextid = ctxs.id AND rcc.roleid = ra.roleid)
-                  JOIN {course_categories} cc ON (cc.id = ctxs.instanceid AND cc.visible)
-                  JOIN {course} c ON (c.category = cc.id AND c.visible)
-                 WHERE ra.userid = :userid2";
-
-        $params['userid1'] = $userid;
-        $params['userid2'] = $userid;
-
-        return array($sql, $params);
     }
 }

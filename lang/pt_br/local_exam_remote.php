@@ -38,7 +38,8 @@ $string['exam_remote:monitor_exam'] = 'Visualizar relatórios de acompanhamento 
 
 $string['rolename'] = 'Papel: teacher, monitor or student';
 
-$string['unknown_course'] = 'Curso desconhecido: \'{$a}\'';
+$string['unknown_course'] = 'Curso desconhecido: \'{$a->shortname}\' em \'{$a->site}\'';
 $string['unknown_user'] = 'Usuário desconhecido: \'{$a}\'';
 $string['no_permission'] = 'Usuário sem permissão: \'{$a}\'';
 $string['backup_file_not_found'] = 'Arquivo de backup da atividade não foi informado';
+$string['precheck_failed'] = 'Foram detectados problemas quando verificando os dados da atividade';

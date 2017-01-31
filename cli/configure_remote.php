@@ -88,16 +88,16 @@ assign_capability('webservice/rest:use', CAP_ALLOW, $roleid, $context->id);
 assign_capability('moodle/course:managegroups', CAP_ALLOW, $roleid, $context->id);
 assign_capability('moodle/course:view', CAP_ALLOW, $roleid, $context->id);
 assign_capability('moodle/restore:restoreactivity', CAP_ALLOW, $roleid, $context->id);
-assign_capability('moodle/user:viewdetails', CAP_ALLOW, $roleid, $context->id);
-assign_capability('moodle/user:viewalldetails', CAP_ALLOW, $roleid, $context->id);
-assign_capability('moodle/user:viewhiddendetails', CAP_ALLOW, $roleid, $context->id);
-assign_capability('moodle/course:useremail', CAP_ALLOW, $roleid, $context->id);
-assign_capability('moodle/site:viewfullnames', CAP_ALLOW, $roleid, $context->id);
-assign_capability('moodle/site:viewuseridentity', CAP_ALLOW, $roleid, $context->id);
-assign_capability('moodle/course:viewparticipants', CAP_ALLOW, $roleid, $context->id);
-assign_capability('moodle/role:review', CAP_ALLOW, $roleid, $context->id);
-assign_capability('moodle/course:enrolreview', CAP_ALLOW, $roleid, $context->id);
-assign_capability('moodle/user:update', CAP_ALLOW, $roleid, $context->id);
+// assign_capability('moodle/user:viewdetails', CAP_ALLOW, $roleid, $context->id);
+// assign_capability('moodle/user:viewalldetails', CAP_ALLOW, $roleid, $context->id);
+// assign_capability('moodle/user:viewhiddendetails', CAP_ALLOW, $roleid, $context->id);
+// assign_capability('moodle/course:useremail', CAP_ALLOW, $roleid, $context->id);
+// assign_capability('moodle/site:viewfullnames', CAP_ALLOW, $roleid, $context->id);
+// assign_capability('moodle/site:viewuseridentity', CAP_ALLOW, $roleid, $context->id);
+// assign_capability('moodle/course:viewparticipants', CAP_ALLOW, $roleid, $context->id);
+// assign_capability('moodle/role:review', CAP_ALLOW, $roleid, $context->id);
+// assign_capability('moodle/course:enrolreview', CAP_ALLOW, $roleid, $context->id);
+// assign_capability('moodle/user:update', CAP_ALLOW, $roleid, $context->id);
 
 // ----------------------------------------------------------------------------------
 // Set the privous role to the user in the global contex
