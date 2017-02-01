@@ -68,7 +68,7 @@ class local_exam_remote_external extends external_api {
                             array('username' => $username, 'password' => $password));
 
         if ($user = core_user::get_user_by_username($username, 'id, auth, password, deleted, suspended')) {
-            if ($user->deleted || $user->suspended) {
+            if ($user->id == 1 || $user->auth != 'manual' || $user->deleted || $user->suspended) {
                 return false;
             } else {
                 return validate_internal_user_password($user, $password);
